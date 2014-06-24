@@ -1,0 +1,604 @@
+/*
+    Copyright (C) 2004 Ingmar Baumgart <ingmar@ibgt.de>
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+*/
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <signal.h>
+#include <ctype.h>
+#include <sys/select.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <sys/time.h>
+#include <sys/wait.h>
+#include <netinet/in.h>
+#include <net/route.h>
+#include <getopt.h>
+#include <libgen.h>
+#include <arpa/inet.h>
+#include "libipq.h"
+
+#include "list.h"
+#include "table.h"
+#include "pacman.h"
+#include "olsr_d3.h"
+#include "olsr.h"
+#include "fsr.h"
+#include "packet_input.h"
+#include "addr_mgr.h"
+#include "pdad_algo.h"
+
+static struct {
+	int fd;
+	event_func_t func;
+} events[MAX_EVENTS];
+
+const struct rt_prots protocols[MAX_RT_PROTOCOLS] =
+/*{name, port, sn_max, parse_rt_func,
+  param{SA,SN,SND,SNE,SNI,LP,NH,ENH,MPR,EMPR}, max_ips{T1,T2}}*/
+{{ "OLSR_D3", 698, (1<<16) - 1, parse_olsr_d3_msg,
+   {0, 5, 5, 0, 5, 0.4, 0, 0, 0, 0}, {15, 6} },
+ { "OLSR", 698, (1<<16) - 1, parse_olsr_msg,
+   {0, 5, 5, 0, 5, 0.4, 0, 0, 0, 0}, {15, 6} },
+ { "FSR", 13169, (1<<16) - 1, parse_fsr_msg,
+   {0, 5, 5, 0, 5, 0.4, 0, 0, 0, 0}, {16, 0}}};
+
+struct pdad_algo pa[MAX_PDAD_ALGO] =
+/* {name, pdad_func, active, par, stats} */
+{{ "SA", pdad_sa, 0, 0, 0},
+ { "SN", pdad_sn, 0, 0, 0},
+ { "SND", pdad_snd, 0, 0, 0},
+ { "SNE", pdad_sne, 0, 0, 0},
+ { "SNI", pdad_sni, 0, 0, 0},
+ { "LP", pdad_lp, 0, 0, 0},
+ { "NH", pdad_nh, 0, 0, 0},
+ { "ENH", pdad_enh, 0, 0, 0},
+ { "MPR",pdad_mpr, 0, 0, 0},
+ { "EMPR",pdad_empr, 0, 0, 0}};
+
+static int nr_events = 0;
+static int rt_pid = 0;
+
+int rt_protocol = OLSR;
+long autoconf = 0;
+int max_ips[LS_TYPE2 + 1] = {0, 0};
+char *dev = "eth0";
+u_int32_t netmask = 0;
+char **rt_cmdline = NULL;
+u_int32_t est_node_count = EST_NODE_COUNT;
+float target_prob_conf = TARGET_PROB_CONF;
+int debug = 0;
+int hide_hints_in_gui = FALSE;
+int exit_locked = 0;
+int t_d = DEFAULT_T_D;
+
+struct timeval starttime;
+
+int timer_expired = FALSE;
+
+u_int32_t get_if_addr(char *dev)
+{
+	int skfd;
+	struct ifreq ifr;
+	
+	skfd = socket(PF_INET, SOCK_DGRAM, 0);
+	strcpy(ifr.ifr_name, dev);
+
+	if (ioctl(skfd, SIOCGIFNETMASK, &ifr) < 0) {
+		fprintf(stderr, "Couldn't get netmask of interface %s:", dev);
+		perror("");
+		netmask = 0;
+		return 0;
+	}
+	netmask = ntohl(((struct sockaddr_in*)&ifr.ifr_addr)->sin_addr.s_addr);
+	DEBUG(DEBUG_MAIN, "new netmask: %s\n", print_ip(netmask));
+
+	if (ioctl(skfd, SIOCGIFADDR, &ifr) < 0) {
+		fprintf(stderr, "Couldn't get address of %s!\n", dev);
+		if (errno != EADDRNOTAVAIL) exit(-1);
+		return 0;
+	}
+
+	return(ntohl(((struct sockaddr_in*)&ifr.ifr_addr)->sin_addr.s_addr));
+}
+
+u_int32_t set_if_addr(char *dev, u_int32_t addr)
+{
+	int skfd;
+	struct ifreq ifr;
+/*	struct rtentry route; */
+	char buf[256];
+	
+	skfd = socket(PF_INET, SOCK_DGRAM, 0);
+	strcpy(ifr.ifr_name, dev);
+
+	ifr.ifr_addr.sa_family = AF_INET;
+	((struct sockaddr_in*)&ifr.ifr_addr)->sin_addr.s_addr = htonl(addr);
+	if (ioctl(skfd, SIOCSIFADDR, &ifr) < 0) {
+		fprintf(stderr, "Couldn't set address of interface %s:", dev);
+		perror("");
+		exit(1);
+	}
+	if (ioctl(skfd, SIOCGIFFLAGS, &ifr) < 0) {
+		fprintf(stderr, "Couldn't get flags of interface %s:", dev);
+		perror("");
+		exit(1);
+	}
+
+	/* shutdown interface to flush kernel routing table */
+	ifr.ifr_flags &= ~IFF_UP;
+	if (!autoconf && (ioctl(skfd, SIOCSIFFLAGS, &ifr) < 0)) {
+		fprintf(stderr, "Couldn't set flags of interface %s:", dev);
+	        perror("");
+	        exit(1);
+	}
+
+	ifr.ifr_flags |= (IFF_UP | IFF_BROADCAST | IFF_MULTICAST);
+	if (ioctl(skfd, SIOCSIFFLAGS, &ifr) < 0) {
+		fprintf(stderr, "Couldn't set flags of interface %s:", dev);
+		perror("");
+		exit(1);
+	}
+	if (ioctl(skfd, SIOCGIFNETMASK, &ifr) < 0) {
+		fprintf(stderr, "Couldn't get netmask of interface %s:", dev);
+		perror("");
+		netmask = 0;
+		return 0;
+	}
+	netmask = ntohl(((struct sockaddr_in*)&ifr.ifr_addr)->sin_addr.s_addr);
+
+	DEBUG(DEBUG_MAIN, "new netmask: %s\n", print_ip(netmask));
+
+	sprintf(buf, "/sbin/route add 255.255.255.255 %s", dev);
+	system(buf);
+
+	return 0;
+}
+
+int add_event_func(int fd, event_func_t func) {
+	if (nr_events >= MAX_EVENTS) {
+		fprintf(stderr, "Too many event functions registered "
+			"- increase MAX_EVENTS!\n");
+		exit(1);
+	}
+	events[nr_events].fd = fd;
+	events[nr_events++].func = func;
+	
+	return 0;	
+}
+
+int update_event_func(int fd, event_func_t func) {
+	int i;
+
+	for(i=0; i<nr_events; i++) {
+		if (events[i].func == func) {
+			events[i].fd = fd;
+			break;
+		}
+	}
+	
+	if (i == nr_events) add_event_func(fd, func);
+	return 0;	
+}
+
+void signal_handler(int sig)
+{
+	switch(sig) {
+	case SIGALRM:
+		timer_expired = TRUE;
+		break;;
+	case SIGTERM:
+	case SIGINT:
+	default:
+		exit(0);
+	}
+}
+
+void start_rt_daemon()
+{
+	sigset_t sigmask;
+
+	if (rt_cmdline == NULL) return;
+
+	rt_pid = fork();
+	if(rt_pid == 0) {
+		DEBUG(DEBUG_MAIN, "starting %s...\n", rt_cmdline[0]);
+
+		signal(SIGTERM, SIG_DFL);
+		signal(SIGINT, SIG_DFL);
+		signal(SIGALRM, SIG_DFL);
+
+		sigemptyset(&sigmask);
+		sigprocmask(SIG_SETMASK, &sigmask, NULL);
+
+		execv(rt_cmdline[0], rt_cmdline);
+		perror("start_rt_daemon()");
+		exit(1);
+	}
+	if(rt_pid == -1) {
+		perror("start_rt_daemon()");
+		exit(1);
+	}
+}
+
+void stop_rt_daemon()
+{
+	if (rt_pid) {
+		kill(rt_pid, SIGTERM);
+		wait(0);
+	}
+}
+
+void cleanup_on_exit()
+{
+	char buf[256];
+
+	if(exit_locked) return;
+
+	exit_locked = 1;
+
+	DEBUG(DEBUG_MAIN, "cleanup_on_exit()\n");
+	cleanup_packet_input();
+
+	stop_rt_daemon();
+
+	sprintf(buf, "/sbin/rmmod kpacman");
+	system(buf);
+
+	sprintf(buf, "/sbin/rmmod ip_queue");
+	system(buf);
+
+	close_sockets();
+	
+	print_pdad_stats();
+}
+
+void usage(const char *name)
+{
+	fprintf(stderr, "\nUsage: %s [OPTIONS] [/path/rt_daemon [rt_opt1] "
+		"[rt_opt2]...]\n\n"
+"-a, --enable-sa \t enable PDAD-SA\n"
+"-b, --brdcst-list-req \t send broadcast LIST_REQ message (implies -u)\n"
+"-c, --probconf=FLOAT \t probability that an address conflict occurs\n"
+"-d, --debug=MASK \t set debug level to MASK\n"
+"-D, --enable-snd[=VAL] \t enable PDAD-SND with parameter VAL\n"
+"-e, --est-node-code \t estimated number of nodes in the network\n"
+"-E, --enable-sne[=VAL] \t enable PDAD-SNE with parameter VAL\n"
+"-h, --help \t\t display this help and exit\n"
+"-H, --hide-hints \t\t hide HINTs (ENH/EMPR) in the gui history tab\n"
+"-i, --device=DEV \t set network device to DEV\n"
+"-I, --enable-sni[=VAL] \t enable PDAD-SNI with parameter VAL\n"
+"-l, --enable-lp[=VAL] \t enable PDAD-LP with parameter VAL\n"
+"-m, --enable-mpr \t enable PDAD-MPR\n"
+"-M, --enable-empr \t enable PDAD-EMPR\n"
+"-n, --enable-nh \t enable PDAD-NH\n"
+"-N, --enable-enh \t enable PDAD-ENH\n"
+"-p, --protocol=PROTO \t set routing protocol to PROTO\n"
+		"\t\t\t valid protcols: OLSR_D3, OLSR, FSR\n"
+"-r, --seed=VAL \t\t set random number generator seed to VAL (for debugging)\n"
+"-S, --enable-sn[=VAL] \t enable PDAD-SN with parameter VAL\n"
+"-t, --td=VAL \t \t set max. distribution time to VAL seconds\n"
+"--max-ips-t1=VAL \t set maximum inter-packet spacing for HELLOs to VAL\n"
+"--max-ips-t2=VAL \t set maximum inter-packet spacing for TCs to VAL\n"
+"-u, --autoconf[=VAL] \t perfom autoconfiguration (after listening for VAL ms)\n"
+"-V, --version \t\t print version information and exit\n"
+		, name);
+}
+
+int main(int argc, const char *argv[])
+{
+	fd_set rfds;
+	int nfds = 0;
+	int i,n, opt;
+	int brdcst_list_req = 0;
+	char buf[256];
+	struct itimerval timer;
+	unsigned int seed = 0;
+	sigset_t sigmask, orig_sigmask;
+
+	static struct option long_options[] = {
+		{"enable-sa", 0, 0, 'a'},
+		{"brdcst-list-req", 0, 0, 'b'},
+		{"probconf", 1, 0, 'c'},
+		{"debug", 1, 0, 'd'},
+		{"enable-snd", 2, 0, 'D'},
+		{"est-node-code", 1, 0, 'e'},
+		{"enable-sne", 2, 0, 'E'},
+		{"help", 0, 0, 'h'},
+		{"hide-hints", 0, 0, 'H'},
+		{"device", 1, 0, 'i'},
+		{"enable-lp", 2, 0, 'l'},
+		{"enable-mpr", 0, 0, 'm'},
+		{"enable-nh", 0, 0, 'n'},
+		{"enable-empr", 0, 0, 'M'},
+		{"enable-enh", 0, 0, 'N'},
+		{"protocol", 1, 0, 'p'},
+		{"seed", 1, 0, 'r'},
+		{"enable-sn", 2, 0, 'S'},
+		{"td", 1, 0, 't'},
+		{"enable-sni", 2, 0, 'I'},
+		{"max-ips-t1", 1, 0, '1'},
+		{"max-ips-t2", 1, 0, '2'},
+		{"autoconf", 2, 0, 'u'},
+                {"version", 0, 0, 'V'}
+	};
+
+	while (1) {
+		opt = getopt_long(argc, (char**)argv,
+			"+abc:d:D::e:E::hHi:I::l::mMnNp:r:S::t:u::V"
+				,long_options,0);
+		if (opt == -1) break;
+
+		switch (opt) {
+		case 'a':
+			pa[SA].active = 1;
+			break;;
+		case 'b':
+			brdcst_list_req = 1;
+			if(!autoconf) autoconf = 1;
+			break;;
+		case 'c':
+			if (isdigit(optarg[0]))
+				target_prob_conf = atof(optarg);
+			break;;
+		case 'd':
+			if (isdigit(optarg[0]))
+				debug = atoi(optarg);
+			break;;
+		case 'D':
+			pa[SND].active = 1;
+			
+			if ((optarg) && isdigit(optarg[0])) {
+				pa[SND].par = atof(optarg);
+			}
+			break;;
+		case 'e':
+			if (isdigit(optarg[0]))
+				est_node_count = atoi(optarg);
+			break;;
+		case 'E':
+			pa[SNE].active = 1;
+			
+			if ((optarg) && isdigit(optarg[0])) {
+				pa[SNE].par = atof(optarg);
+			}
+			break;;
+		case 'H':
+			hide_hints_in_gui = TRUE;
+			break;;
+
+		case 'i':
+			dev = optarg;
+			break;;
+		case 'I':
+			pa[SNI].active = 1;
+			
+			if ((optarg) && isdigit(optarg[0])) {
+				pa[SNI].par = atof(optarg);
+			}
+			break;;
+		case 'l':
+			pa[LP].active = 1;
+			if ((optarg) && isdigit(optarg[0])) {
+				pa[LP].par = atof(optarg);
+			}
+			break;;
+		case 'm':
+			pa[MPR].active = 1;
+			break;;
+		case 'M':
+			pa[EMPR].active = 1;
+			break;;
+		case 'n':
+			pa[NH].active = 1;
+			break;;
+		case 'N':
+			pa[ENH].active = 1;
+			break;;
+		case 'p':
+			for (i=0; i<MAX_RT_PROTOCOLS; i++) {
+				if(strcasecmp(optarg,protocols[i].name) == 0) {
+					rt_protocol = i;
+					break;
+				}
+			}
+			if (i == MAX_RT_PROTOCOLS) {
+				fprintf(stderr, "Unknown protocol: %s\n",
+					optarg);
+				exit(1);
+			}
+			break;
+		case 'r':
+			if (isdigit(optarg[0]))
+				seed = atoi(optarg);
+			break;;
+
+		case 'S':
+			pa[SN].active = 1;
+			
+			if ((optarg) && isdigit(optarg[0])) {
+				pa[SN].par = atof(optarg);
+			}
+			break;;
+		case 't':
+			if (isdigit(optarg[0]))
+				t_d = atoi(optarg);
+			break;;
+
+		case '1':
+			if (isdigit(optarg[0]))
+				max_ips[LS_TYPE1] = atoi(optarg);
+			break;;
+		case '2':
+			if (isdigit(optarg[0]))
+				max_ips[LS_TYPE2] = atoi(optarg);
+			break;;
+		case 'V':
+                        PRINTF("%s %s\n", argv[0], VERSION);
+			exit(0);
+		case 'u':
+			if ((optarg) && isdigit(optarg[0]))
+				autoconf = atoi(optarg) * 1000;
+			else
+				autoconf = 1;
+			break;;
+		case ':':
+			exit(0);
+		default:
+			usage(argv[0]);
+			exit(0);
+		}
+	}
+
+	/* routing daemon to be started by us - was passed on command line */
+	if (optind < argc) rt_cmdline = (char **)&argv[optind];
+
+	DEBUG(DEBUG_MAIN, "\ndev:%s protocol: %s\n", dev,
+	      protocols[rt_protocol].name);
+
+	for(i=0; i<MAX_PDAD_ALGO; i++) {
+		/* set protocol specific default parameters */
+		if(pa[i].par == 0) pa[i].par=protocols[rt_protocol].def_par[i];
+		if(pa[i].active) {
+			DEBUG(DEBUG_MAIN, "%s:%.2f\n", pa[i].name, pa[i].par);
+		}
+	}
+	for(i=0; i<2; i++) {
+		if (!max_ips[i]) max_ips[i]=protocols[rt_protocol].max_ips[i];
+	}
+
+	/* à remplacer par le module de la lib nftables si j'ai bien compris*/
+	sprintf(buf, "/sbin/modprobe ip_queue");
+	if(system(buf) != 0) {
+//		fprintf(stderr, "Error loading ip_queue kernel module.\n");
+//		exit(1);		
+	}
+
+	sprintf(buf, "/sbin/insmod ./kpacman.o port=%u",
+		protocols[rt_protocol].port);
+	if(system(buf) != 0) {
+//		fprintf(stderr, "Error loading kpacman kernel module.\n");
+//		exit(1);		
+	}
+
+
+ 	init_htable();
+	/* set interface address to 0.0.0.0 in autoconf mode */
+	if(autoconf) set_if_addr(dev, ntohl(inet_addr("0.0.0.0")));
+	init_loc_ls_tab(get_if_addr(dev));
+
+	/* ensure clean exits */
+	atexit((void *)&cleanup_on_exit);
+	signal(SIGTERM, signal_handler);
+	signal(SIGINT, signal_handler);
+	signal(SIGALRM, signal_handler);
+
+
+	init_packet_input();
+	init_pacman_msg_socket();
+	init_gui_socket();
+
+	/* init random number generator */
+	gettimeofday(&starttime, NULL);
+	srandom(seed ? seed : (unsigned int)starttime.tv_usec);
+	PRINTF("starttime: %li.%.06li\n", starttime.tv_sec, starttime.tv_usec);
+
+	/* init timer */
+	timer.it_interval.tv_sec = autoconf ? 0 : TIMER_INT;
+	timer.it_value.tv_sec = autoconf ? 0 : TIMER_INT;
+	timer.it_interval.tv_usec = 0;
+	timer.it_value.tv_usec = autoconf ? autoconf : 0;
+	sigemptyset(&sigmask);
+	sigaddset(&sigmask, SIGALRM);
+	sigprocmask(SIG_BLOCK, &sigmask, &orig_sigmask);
+	if (setitimer(ITIMER_REAL, &timer, (struct itimerval*)NULL) < 0) {
+		perror("setitimer()");
+		exit(1);
+	}
+
+	/* in autoconf mode: start routing daemon later */
+	if(!autoconf) start_rt_daemon();
+	
+	while(1) {
+		FD_ZERO(&rfds);
+		for (i = 0; i < nr_events; i++) {
+			if (events[i].fd >= 0) FD_SET(events[i].fd, &rfds);
+			nfds = max(nfds, events[i].fd + 1);
+		}
+		
+		if ((n = pselect(nfds,&rfds,NULL,NULL,0,&orig_sigmask)) < 0) {
+			if (errno != EINTR) {
+				perror("select loop");
+				exit(1);
+			}
+		}
+		
+		DEBUG(DEBUG_MAIN, "select n:%i ", n);
+		DEBUG(DEBUG_MAIN, "fd0:%i ", FD_ISSET(events[0].fd, &rfds));
+		DEBUG(DEBUG_MAIN, "fd1:%i\n", FD_ISSET(events[1].fd, &rfds));
+		
+		if (timer_expired) {
+			switch(autoconf) {
+				/* autoconf stage2 (choose address) */
+			case -1:
+				autoconf = 0;
+				timer.it_interval.tv_sec = TIMER_INT;
+				timer.it_value.tv_sec = TIMER_INT;
+				if (setitimer(ITIMER_REAL, &timer,
+					      (struct itimerval*)NULL) < 0) {
+					perror("setitimer()");
+					exit(1);
+				}
+				resolve_conflict(loc_ls_tab.addr, 0,
+						 "AUTOCONF", 0);
+				break;;
+
+				/* no autoconf */
+			case 0:
+				break;;
+
+				/* autoconf stage1 (send LIST_REQ_MSG) */
+			default:
+				autoconf = -1;
+				if(brdcst_list_req)
+					send_list_req_msg();
+				timer.it_interval.tv_sec = 0;
+				timer.it_value.tv_sec = 0;
+				timer.it_interval.tv_usec = 0;
+				timer.it_value.tv_usec = LISTWAIT_INT*1000;
+				if (setitimer(ITIMER_REAL, &timer,
+					      (struct itimerval*)NULL) < 0) {
+					perror("setitimer()");
+					exit(1);
+				}
+				break;;
+			}
+			table_cleanup_timer();
+			timer_expired = FALSE;
+		}
+		if (n > 0) {
+			for (i = 0; i < nr_events; i++) {
+				if(FD_ISSET(events[i].fd, &rfds)) {
+					(*events[i].func) (events[i].fd);
+				}
+			}
+		}
+	}
+}
+

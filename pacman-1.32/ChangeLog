@@ -1,0 +1,10 @@
+v1.32 Thu Feb  3 11:25:06 CET 2005 Ingmar Baumgart <ingmar@ibgt.de>
+
+- bug fixed: loading the kpacman.o kernel module failed with unresolved
+             symbols on 2.4.x kernels with modversions support.
+
+- added notes about setting a broadcast route to the README
+
+v1.31 Thu Sep 16 14:24:05 CEST 2004 Ingmar Baumgart <ingmar@ibgt.de>
+
+- Inital public release

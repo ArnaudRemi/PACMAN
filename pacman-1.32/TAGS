@@ -1,0 +1,508 @@
+
+fsr.c,56
+int parse_fsr_tc_msg(31,998
+int parse_fsr_msg(45,1373
+
+kernel/kpacman.c,540
+#define MCAST_ENABLED 42,1225
+#undef htonl59,1572
+#undef htons60,1585
+#undef ntohl61,1598
+#undef ntohs62,1611
+#define htonl(63,1624
+#define htons(64,1658
+#define ntohl(65,1692
+#define ntohs(66,1726
+#define PDAD_PORT 68,1761
+#define MULTICAST(70,1786
+#define LOCAL_MCAST(71,1856
+static struct nf_hook_ops nfh_pre 79,2114
+static struct nf_hook_ops nfh_out 92,2307
+static u_int16_t port 105,2495
+static const char bcast[bcast107,2523
+unsigned int pdad_nf_hook(109,2591
+int init_module(170,4005
+void cleanup_module(185,4275
+
+kernel/kpacman.mod.c,72
+__visible struct module __this_module7,124
+__used18,409
+__used29,820
+
+olsr_d3.h,916
+#define _OLSR_D3_H20,803
+#define HELLO_PACKET 23,848
+#define TC_PACKET 24,871
+#define ASYM_LINK 27,914
+#define SYM_LINK 28,934
+#define MPR_LINK 29,953
+#define TC 32,996
+#define HELLO 33,1016
+struct olsr_d3_msg 35,1040
+	u_int8_t msg_type;36,1061
+	u_int8_t flags;37,1081
+	u_int16_t msg_size;38,1098
+struct hello_link_d3_msg 41,1123
+	u_int8_t linktype;42,1150
+	u_int8_t res;43,1170
+	u_int16_t len;44,1185
+	u_int32_t neigh_addr[neigh_addr45,1201
+struct hello_d3_msg 48,1231
+	u_int16_t msg_seqn;49,1253
+	u_int16_t mpr_seqn;50,1306
+	struct hello_link_d3_msg link_msg[link_msg51,1355
+struct tc_d3_msg 54,1398
+	u_int16_t msg_seqn;55,1417
+	u_int16_t mssn;56,1469
+	u_int8_t hop_count;57,1528
+	u_int8_t res[res58,1549
+	u_int32_t orig_addr;59,1567
+	u_int32_t mpr_s[mpr_s60,1615
+struct olsr_d3_packet 63,1683
+	u_int16_t len;64,1707
+	u_int16_t res;65,1723
+	struct olsr_d3_msg first_msg;66,1739
+
+pdad_algo.c,628
+int addr_changed 37,1109
+struct timeval last_changed_ts 38,1131
+float min_snd_conf_stat 39,1172
+float max_snd_noconf_stat 40,1204
+struct timeval last_hint_msg 41,1236
+int dup_detected(44,1277
+int handle_generic_packet(64,1685
+int do_pdad(97,2598
+int sn_wraparound(157,4209
+int sn_thres_differ(168,4493
+float pdad_nh(189,4951
+float pdad_mpr(216,5599
+float pdad_lp(247,6397
+float pdad_sn(273,6996
+float pdad_snd(294,7449
+float pdad_sne(315,7941
+float pdad_sni(334,8359
+float pdad_sa(358,8919
+float pdad_enh(370,9181
+float pdad_empr(426,10852
+void consider_send_hint(485,12606
+void print_pdad_stats(514,13299
+
+table.c,964
+htable_t htable;32,1016
+local_ls_t loc_ls_tab;34,1034
+int is_bigger(36,1058
+char* print_ip(41,1161
+u_int32_t hash_ip_addr(51,1321
+void init_htable(57,1388
+void init_loc_ls_tab(66,1491
+void print_linkstate_entry(75,1680
+void dump_linkstate_table(92,2231
+void print_conflict_entry(108,2533
+void dump_conflict_table(118,2832
+void dump_loc_ls_tab(134,3142
+int ls_differ(156,3759
+u_int32_t count_htable_entries(192,4599
+ls_entry_t* new_ls_entry(208,4925
+conf_entry_t* new_conf_entry(229,5288
+void update_addr_list(254,5796
+neighbors_t* search_ls_neighbor(273,6144
+loc_neigh_t* search_loc_ls_tab(284,6386
+void update_ls_neighbor(295,6616
+void update_linkcode(310,6939
+void update_loc_neighbor(322,7235
+void* find_htable_entry(348,7891
+ls_entry_t* find_ls_entry(367,8249
+conf_entry_t* find_conf_entry(372,8358
+void delete_htable_entry(377,8468
+void insert_ls_entry(384,8628
+void insert_htable_entry(390,8713
+void table_cleanup_timer(405,9109
+
+addr_mgr.c,641
+int msg_fd;39,1163
+int gui_fd;40,1175
+int client_gui_fd 41,1187
+char last_changed_reason[last_changed_reason42,1211
+int addr_bits;43,1241
+u_int32_t choose_new_addr(45,1257
+int conf_ratelimit(97,2428
+void resolve_conflict(133,3324
+int pacman_sendto(189,4836
+int init_gui_socket(230,5967
+void new_gui_client(255,6442
+void recv_gui_msg(268,6730
+void send_gui_msg(330,8343
+int init_pacman_msg_socket(376,9477
+void close_sockets(422,10481
+void send_list_rep_msg(431,10628
+void send_list_req_msg(459,11346
+void send_acn_msg(481,11832
+void send_hint_msg(549,13798
+u_int32_t is_acn_msg(632,16187
+void recv_pacman_msg(652,16638
+
+table.h,1339
+#define _TABLE_H20,801
+#define HTABLE_SIZE 22,819
+#define HASHMASK 23,842
+#define SA_RCVD 25,876
+#define LS_TYPE1 26,895
+#define LS_TYPE2 27,914
+#define CONF_TYPE 28,933
+#define ADDR_LIST_TYPE 29,953
+#define LC_NONE 32,1017
+#define LC_NOMPR 33,1035
+#define LC_MPR 34,1054
+#define MPR_TRESH 37,1110
+#define IS_LS_ENTRY(39,1132
+#define IS_CONF_ENTRY(41,1233
+#define IS_ADDR_LIST_ENTRY(42,1298
+	list_t l;45,1394
+	u_int32_t orig_addr;46,1405
+	int type;47,1427
+	struct timeval ts;48,1438
+	u_int32_t seqn;49,1458
+	int n_cnt;50,1475
+	list_t neighbors;51,1487
+} ls_entry_t;52,1506
+	list_t l;55,1538
+	u_int32_t orig_addr;56,1549
+	int type;57,1571
+	struct timeval ts;58,1582
+	float conf_p;59,1602
+	struct timeval acn_msg_ts[acn_msg_ts60,1617
+} conf_entry_t;61,1648
+	list_t l;64,1682
+	u_int32_t orig_addr;65,1693
+	int type;66,1715
+	struct timeval ts;67,1726
+} generic_entry_t;68,1746
+	list_t l;81,1907
+	u_int32_t addr;82,1918
+	u_int8_t linkcode;83,1935
+} neighbors_t;84,1955
+	u_int32_t addr;87,1988
+	u_int32_t seqn[seqn88,2005
+	list_t l_neigh;89,2034
+} local_ls_t;90,2051
+	list_t l;93,2083
+	u_int32_t addr;94,2094
+	u_int8_t linkcode;95,2111
+	struct timeval lc_ts;96,2131
+	struct timeval ts;97,2154
+} loc_neigh_t;98,2174
+#define init_list(100,2190
+	list_t lhead[lhead105,2293
+} htable_t;106,2321
+
+main.c,880
+	int fd;48,1352
+	event_func_t func;49,1361
+} events[events50,1381
+const struct rt_prots protocols[protocols52,1404
+struct pdad_algo pa[pa62,1845
+static int nr_events 75,2220
+static int rt_pid 76,2246
+int rt_protocol 78,2270
+long autoconf 79,2294
+int max_ips[max_ips80,2313
+char *dev dev81,2349
+u_int32_t netmask 82,2370
+char **rt_cmdline rt_cmdline83,2393
+u_int32_t est_node_count 84,2419
+float target_prob_conf 85,2462
+int debug 86,2505
+int hide_hints_in_gui 87,2520
+int exit_locked 88,2551
+int t_d 89,2572
+struct timeval starttime;91,2596
+int timer_expired 93,2623
+u_int32_t get_if_addr(95,2651
+u_int32_t set_if_addr(121,3327
+int add_event_func(175,4783
+int update_event_func(187,5045
+void signal_handler(201,5270
+void start_rt_daemon(214,5421
+void stop_rt_daemon(241,5897
+void cleanup_on_exit(249,5978
+void usage(273,6312
+int main(305,7935
+
+olsr.h,944
+#define _OLSR_H20,800
+#define HELLO_PACKET 23,842
+#define TC_PACKET 24,865
+#define NOT_NEIGH 27,912
+#define SYM_NEIGH 28,932
+#define MPR_NEIGH 29,952
+#define TC 32,996
+#define HELLO 33,1016
+struct olsr_msg 35,1040
+	u_int8_t msg_type;36,1058
+	u_int8_t vtime;37,1078
+	u_int16_t msg_size;38,1095
+	u_int32_t orig_addr;39,1116
+	u_int8_t ttl;40,1175
+	u_int8_t hop_count;41,1190
+	u_int16_t msg_seqn;42,1211
+struct hello_link_msg 45,1280
+	u_int8_t linkcode;46,1304
+	u_int8_t res;47,1324
+	u_int16_t len;48,1339
+	u_int32_t neigh_addr[neigh_addr49,1355
+struct hello_msg 52,1385
+	u_int16_t res;53,1404
+	u_int8_t htime;54,1420
+	u_int8_t willingness;55,1437
+	struct hello_link_msg link_msg[link_msg56,1460
+struct tc_msg 59,1500
+	u_int16_t ansn;60,1516
+	u_int16_t res;61,1585
+	u_int32_t mpr_s[mpr_s62,1601
+struct olsr_packet 65,1668
+	u_int16_t len;66,1689
+	u_int16_t packet_seqn;67,1705
+	struct olsr_msg first_msg;68,1729
+
+olsr_d3.c,92
+int parse_hello_d3_msg(31,1002
+int parse_tc_d3_msg(78,2239
+int parse_olsr_d3_msg(98,2768
+
+libipq.h,311
+#define _LIBIPQ_H22,681
+typedef u_int64_t ipq_id_t;37,934
+typedef u_int32_t ipq_id_t;41,1044
+#define LDEBUG(46,1119
+#define LDEBUG(48,1168
+#define MSG_TRUNC 53,1259
+struct ipq_handle56,1290
+	int fd;58,1310
+	u_int8_t blocking;59,1319
+	struct sockaddr_nl local;60,1339
+	struct sockaddr_nl peer;61,1366
+
+packet_input.c,211
+static struct ipq_handle *h;h48,1324
+void die(50,1354
+void update_arp(58,1450
+void handle_ipq_packet(79,2005
+void packet_input(175,4484
+void init_packet_input(202,5017
+void cleanup_packet_input(215,5262
+
+libipq.c,1229
+	IPQ_ERR_NONE 43,1165
+	IPQ_ERR_IMPL,44,1184
+	IPQ_ERR_HANDLE,45,1199
+	IPQ_ERR_SOCKET,46,1216
+	IPQ_ERR_BIND,47,1233
+	IPQ_ERR_BUFFER,48,1248
+	IPQ_ERR_RECV,49,1265
+	IPQ_ERR_NLEOF,50,1280
+	IPQ_ERR_ADDRLEN,51,1296
+	IPQ_ERR_STRUNC,52,1314
+	IPQ_ERR_RTRUNC,53,1331
+	IPQ_ERR_NLRECV,54,1348
+	IPQ_ERR_SEND,55,1365
+	IPQ_ERR_SUPP,56,1380
+	IPQ_ERR_RECVBUF,57,1395
+	IPQ_ERR_TIMEOUT,58,1413
+        IPQ_ERR_PROTOCOL59,1431
+#define IPQ_MAXERR 61,1459
+struct ipq_errmap_t 63,1496
+	int errcode;64,1518
+	char *message;message65,1532
+} ipq_errmap[ipq_errmap66,1548
+static int ipq_errno 86,2413
+static ssize_t ipq_netlink_sendto(101,2983
+static ssize_t ipq_netlink_sendmsg(111,3283
+static ssize_t ipq_netlink_recvfrom(121,3570
+static char *ipq_strerror(ipq_strerror186,4949
+struct ipq_handle *ipq_create_handle(ipq_create_handle202,5329
+int ipq_destroy_handle(255,6710
+int ipq_set_mode(264,6811
+		struct nlmsghdr nlh;268,6914
+		ipq_peer_msg_t pm;269,6937
+ssize_t ipq_read(286,7372
+int ipq_message_type(292,7536
+int ipq_get_msgerr(297,7633
+ipq_packet_msg_t *ipq_get_packet(ipq_get_packet304,7807
+int ipq_set_verdict(309,7917
+int ipq_ctl(354,9041
+char *ipq_errstr(ipq_errstr359,9115
+void ipq_perror(364,9176
+
+includes/ip_queue.h,1445
+#define _IP_QUEUE_H9,185
+#define QDEBUG(13,241
+#define QDEBUG(15,292
+typedef struct ipq_packet_msg 22,423
+        unsigned long packet_id;23,455
+        unsigned long mark;24,521
+        long timestamp_sec;25,588
+        long timestamp_usec;26,664
+        unsigned int hook;27,742
+        char indev_name[indev_name28,817
+        char outdev_name[outdev_name29,890
+        __be16 hw_protocol;30,963
+        unsigned short hw_type;31,1043
+        unsigned char hw_addrlen;32,1103
+        unsigned char hw_addr[hw_addr33,1173
+        size_t data_len;34,1236
+        unsigned char payload[payload35,1304
+} ipq_packet_msg_t;36,1371
+typedef struct ipq_mode_msg 39,1427
+        unsigned char value;40,1457
+        size_t range;41,1518
+} ipq_mode_msg_t;42,1599
+typedef struct ipq_verdict_msg 44,1618
+        unsigned int value;45,1651
+        unsigned long id;46,1726
+        size_t data_len;47,1799
+        unsigned char payload[payload48,1872
+} ipq_verdict_msg_t;49,1946
+typedef struct ipq_peer_msg 51,1968
+                ipq_verdict_msg_t verdict;53,2014
+                ipq_mode_msg_t mode;54,2057
+        } msg;55,2094
+} ipq_peer_msg_t;56,2109
+        IPQ_COPY_NONE,60,2163
+        IPQ_COPY_META,61,2235
+        IPQ_COPY_PACKET 62,2287
+#define IPQ_COPY_MAX 64,2359
+#define IPQM_BASE 67,2421
+#define IPQM_MODE 68,2496
+#define IPQM_VERDICT 69,2573
+#define IPQM_PACKET 70,2646
+#define IPQM_MAX 71,2719
+
+packet_input.h,55
+#define _PACKET_INPUT_H20,808
+#define BUFSIZE 28,973
+
+pacman.h,1699
+#define _PACMAN_H20,802
+#define VERSION 22,821
+#define MAX_EVENTS 27,907
+#define MAX_RT_PROTOCOLS 29,929
+#define OLSR_D3 31,957
+#define OLSR 32,975
+#define FSR 33,990
+#define DROP 35,1005
+#define ACCEPT 36,1020
+#define FALSE 38,1038
+#define TRUE 39,1054
+#define MAX_PDAD_ALGO 41,1070
+#define SA 42,1095
+#define SN 43,1108
+#define SND 44,1121
+#define SNE 45,1135
+#define SNI 46,1149
+#define LP 47,1163
+#define NH 48,1176
+#define ENH 49,1189
+#define MPR 50,1203
+#define EMPR 51,1217
+#define CONF_P_THRES 53,1233
+#define PACMAN_PORT 54,1259
+#define EST_NODE_COUNT 57,1333
+#define TARGET_PROB_CONF 60,1422
+#define DEFAULT_T_D 63,1495
+#define LISTWAIT_INT 66,1595
+#define MSG_JITTER 69,1644
+#define ACN_TIME 72,1712
+#define HINT_TIME 75,1780
+#define LOC_TIMEOUT 78,1845
+#define HTABLE_TIMEOUT 79,1869
+#define TIMER_INT 80,1896
+#define DEBUG(82,1965
+#define PRINTF(83,2039
+#define DEBUG_PDAD_CONF 85,2098
+#define DEBUG_MSG 86,2127
+#define DEBUG_PDAD 87,2150
+#define DEBUG_MAIN 88,2174
+#define DEBUG_INPUT 89,2198
+#define DEBUG_TABLE 90,2223
+#define DEBUG_OLSR 91,2248
+#define DEBUG_FSR 92,2272
+typedef void (*event_func_t)event_func_t94,2296
+typedef int (*parse_rt_func_t)parse_rt_func_t95,2332
+struct rt_prots 98,2427
+	char *name;name99,2445
+	u_int16_t port;100,2487
+	u_int32_t sn_max;101,2521
+	parse_rt_func_t parse_rt_func;102,2569
+	float def_par[def_par103,2623
+	int max_ips[max_ips104,2686
+typedef float (*pdad_func_t)pdad_func_t107,2757
+struct pdad_algo 109,2859
+	char *name;name110,2878
+	pdad_func_t pdad_func;111,2932
+	u_int8_t active;112,2989
+	float par;113,3040
+  	int stats;114,3099
+#define max(141,3723
+#define min(142,3756
+
+list.h,215
+#define _LIST_H20,800
+typedef struct list_t 24,838
+	struct list_t *prev;prev25,862
+	struct list_t *next;next26,884
+} list_t;27,906
+typedef int (*cmp_func_t)cmp_func_t29,917
+#define foreach_listitem(31,967
+
+list.c,138
+void add_item_behind_pos(23,824
+void add_item(33,966
+void add_item_sorted(38,1047
+void unlink_item(49,1236
+void destroy_list(57,1371
+
+addr_mgr.h,647
+#define _ADDR_MGR_H20,804
+#define ACN_MSG 22,825
+#define LIST_REQ_MSG 23,843
+#define LIST_REP_MSG 24,866
+#define HINT_MSG 25,889
+#define ACN_DIR1 27,913
+#define ACN_DIR2 28,932
+#define MAX_MSGADDR 30,952
+#define MAX_HINT_NEIGHBORS 31,977
+#define GUI_SOCKETNAME 33,1010
+#define STAT_CONF 34,1054
+#define STAT_ADDR 35,1074
+	u_int32_t orig_addr;38,1112
+	u_int32_t seqn;39,1134
+	int16_t type;40,1151
+	u_int16_t n_cnt;41,1166
+	u_int32_t neighbors[neighbors42,1184
+} ls_hint_t;43,1226
+struct pacman_msg 45,1240
+	u_int8_t type;46,1260
+	char magic[magic47,1276
+		u_int32_t addr[addr49,1301
+		ls_hint_t hint;50,1332
+	} u;51,1350
+
+pdad_algo.h,28
+#define _PDAD_ALGO_H20,805
+
+olsr.c,83
+int parse_hello_msg(31,999
+int parse_tc_msg(81,2299
+int parse_olsr_msg(102,2835
+
+fsr.h,260
+#define _FSR_H20,799
+struct fsr_tc_msg 22,815
+	u_int32_t d_addr;23,835
+	u_int16_t d_seqn;24,854
+	u_int16_t n_cnt;25,873
+	u_int32_t n_addr[n_addr26,891
+struct fsr_msg 29,917
+	u_int16_t len;30,934
+	u_int16_t res;31,950
+	struct fsr_tc_msg tc[tc32,966

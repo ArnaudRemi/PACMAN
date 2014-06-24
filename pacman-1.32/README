@@ -1,0 +1,121 @@
+Linux implementation of PACMAN 
+==============================
+
+by the Institute of Telematics, University of Karlsruhe, Germany.
+
+
+Introduction
+------------
+
+Mobile ad hoc networks enable the establishment of a communication network
+independent of any infrastructure in a spontaneous manner. For that purpose,
+the network must be self-organizing and autoconfiguring. Passive
+Autoconfiguration for Mobile Ad hoc Networks (PACMAN) is an efficient and
+robust distributed solution for address autoconfiguration in mobile ad hoc
+networks.
+
+Special features of PACMAN are the support for frequent network partitioning
+and merging, and very low protocol overhead. This is accomplished by
+following a cross-layer/cross-protocol design. For example, PACMAN utilizes
+the Passive Duplicate Address Detection (PDAD) concept to detect address
+conflicts based on anomalies in routing protocol traffic.
+
+Detailed information about PACMAN can be found in the article "K. Weniger:
+PACMAN: Passive Autoconfiguration for Mobile Ad hoc Networks, to appear in
+IEEE Journal on Selected Areas in Communications (JSAC) Special Issue
+'Wireless Ad hoc Networks', March 2005"
+
+This README tells how to compile and run the PACMAN Linux implemenation. The
+implementation does not (yet) include the components "address compression",
+"clustering" and "address change management".
+
+
+Compiling PACMAN
+----------------
+
+Compile with "make". A kernel module is needed that is compiled with "make
+kpacman.o" for kernel 2.4.x  and "make kpacman.ko" for kernel 2.6.x.
+
+PACMAN was only tested with kernel 2.4.19 - support for 2.6.x is
+completely untested!
+
+The kernel option "CONFIG_IP_NF_QUEUE" must be enabled.
+
+Running PACMAN
+--------------
+
+Currently, PACMAN supports FSR (draft v3) and OLSR (draft v3 and RFC 3626)
+and was tested with the OLSR Unik implementation v0.4.6
+(http://www.olsr.org/) on HP iPAQs running familiar 0.7.2.  Since current
+routing protocol implementations do not support address changes, PACMAN
+restarts the routing protocol after every address change. The routing daemon
+must be started in the foreground ("non-daemon mode"). PACMAN needs to be
+run as root. If you want PACMAN to send broadcast LIST_REQ messages (-b
+commanline switch), you have to add a broadcast route to your wireless
+interface:
+
+/sbin/ifconfig eth1 0.0.0.0
+/sbin/route add 255.255.255.255 eth1
+
+
+  Usage: ./pacman [OPTIONS] [/path/rt_daemon [rt_opt1] [rt_opt2]...]
+
+  -a, --enable-sa          enable PDAD-SA
+  -b, --brdcst-list-req    send broadcast LIST_REQ message (implies -u)
+  -c, --probconf=FLOAT     probability that an address conflict occurs
+  -d, --debug=MASK         set debug level to MASK
+  -D ,--enable-snd[=VAL]   enable PDAD-SND with parameter VAL
+  -e, --est-node-code      estimated number of nodes in the network
+  -E, --enable-sne[=VAL]   enable PDAD-SNE with parameter VAL
+  -h, --help               display this help and exit
+  -H, --hide-hints         hide HINTs (ENH/EMPR) in the gui history tab
+  -i, --device=DEV         set network device to DEV
+  -I, --enable-sni[=VAL]   enable PDAD-SNI with parameter VAL
+  -l, --enable-lp[=VAL]    enable PDAD-LP with parameter VAL
+  -m, --enable-mpr         enable PDAD-MPR
+  -M, --enable-empr        enable PDAD-EMPR
+  -n, --enable-nh          enable PDAD-NH
+  -N, --enable-enh         enable PDAD-ENH
+  -p, --protocol=PROTO     set routing protocol to PROTO
+                           valid protcols: OLSR_D3, OLSR, FSR
+  -r, --seed=VAL           set random number generator seed to VAL (for debugging)
+  -S, --enable-sn[=VAL]    enable PDAD-SN with parameter VAL
+  -t, --td=VAL             set max. distribution time to VAL seconds
+  --max-ips-t1=VAL         set maximum inter-packet spacing for HELLOs to VAL
+  --max-ips-t2=VAL         set maximum inter-packet spacing for TCs to VAL
+  -u, --autoconf[=VAL]     perfom autoconfiguration (after listening for VAL ms)
+  -V, --version            print version information and exit
+
+
+Examples:
+
+1) Running PACMAN with UniK-OLSR
+
+./pacman -e10 -c0.99 -H -a -b -S -D -E -I -m -M -pOLSR /root/olsrd -i eth0
+
+2) Running PACMAN with FSR
+
+./pacman -e10 -c0.99 -H -a -b -S -D -E -pFSR /root/fsrd -i eth0 -t
+
+
+The directory "contrib" contains a binary release of the PACMAN GUI for iPAQ
+and x86 (based on Qt/Embedded 2 and Qt 3, respectively). The GUI shows the
+current address, an event history, various statistics and the address
+allocation table. It also supports triggering automatic or manual address
+assignment and modifying the maximum allowed conflict probability.
+
+
+WNTE
+----
+
+The Wireless Network Topology Emulator (WNTE) at
+http://sourceforge.net/projects/wnte/ may be of help when testing or
+demonstrating PACMAN.
+
+
+More Information
+----------------
+
+Homepage: http://www.tm.uka.de/~weniger/pacman/
+
+Mailing list: pacman@ira.uka.de

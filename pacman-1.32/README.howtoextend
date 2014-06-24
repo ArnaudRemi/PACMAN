@@ -1,0 +1,134 @@
+Extending the Linux PACMAN implementation
+=========================================
+
+The implementation is written somewhat modular to ease the integration of
+new routing protocols and PDAD algorithms. In the following, a brief
+instruction tells you how to integrate support for new routing protocols and
+PDAD algorithms.
+
+
+Integration of new routing protocol
+-----------------------------------
+
+1.) Implement a function to parse the routing protocol packets and return
+information to the function handle_generic_packet() in a generic routing
+protocol packet format. Currently, only link-state routing protocols are
+supported (ls_entry_t).
+
+  typedef struct {
+        list_t l;
+        u_int32_t orig_addr;
+        int type;
+        struct timeval ts;
+        u_int32_t seqn;
+        int n_cnt;
+        list_t neighbors;
+  } ls_entry_t;
+
+The parse function is of type (*parse_rt_func_t):
+
+  typedef int (*parse_rt_func_t) (char *msg, size_t len,
+                                u_int32_t src_addr, int incoming);
+
+
+
+The OLSR parse function for TC messages looks as follows:
+
+  int parse_tc_msg(struct tc_msg *m, int len, int incoming, u_int32_t src,
+                 u_int16_t seqn, u_int32_t orig_addr)
+  {
+        ls_entry_t* e;
+        int i;
+
+
+        if(len < (sizeof(struct tc_msg) - sizeof(u_int32_t))) {
+                DEBUG(DEBUG_OLSR, "TC message to short - len: %u!\n", len);
+                return NF_ACCEPT;
+        }
+
+        e = new_ls_entry(orig_addr, seqn, TC);
+
+        /* copy all neighbors to ls_entry_t *e */
+        for (i=0; ((char*)&(m->mpr_s[i+1]) - (char*)m) <= len; i++)
+                update_ls_neighbor(e, ntohl(m->mpr_s[i]), LC_NONE);
+
+        return handle_generic_packet(e, src, incoming);
+  }
+
+
+
+2.) Extend the value of protocols[MAX_RT_PROTOCOLS] in main.c,
+which is of type
+
+  struct rt_prots {
+        char *name;                     /* protocol name */
+        u_int16_t port;                 /* udp port */
+        u_int32_t sn_max;               /* sequence number size */
+        parse_rt_func_t parse_rt_func;  /* parser function */
+        float def_par[MAX_PDAD_ALGO];   /* default PDAD parameters */
+        int max_ips[LS_TYPE2 + 1];      /* max allowed inter-packet-spacing */
+  };
+
+Don't forget to increment MAX_RT_PROTOCOLS in pacman.h.
+An example for OLSR is 
+
+  { "OLSR", 698, (1<<16) - 1, parse_olsr_msg,
+	{0, 5, 5, 0, 5, 0.4, 0, 0, 0, 0}, {15, 6} }
+
+
+Integration of new PDAD algorithms
+----------------------------------
+
+1.) Implement the PDAD algorithm of type (*pdad_func_t) in pdad_algo.c. 
+
+  typedef float (*pdad_func_t) (ls_entry_t *e, u_int32_t *conf_addr,
+                              float *alpha, float par);
+
+E.g., the SN function looks as follows:
+
+
+  float pdad_sn(ls_entry_t *e, u_int32_t *conf_addr, float *alpha, float sn_rate)
+  {
+        float sn_thres;
+
+        *alpha = 1;
+        sn_thres = sn_rate*t_d;
+
+        /* SN: orig_addr = addr(A), SN > SN(A) */
+        if (e->orig_addr == loc_ls_tab.addr) {
+                if ((e->seqn > loc_ls_tab.seqn[e->type]) &&
+                    (!sn_wraparound(e->seqn, loc_ls_tab.seqn[e->type], sn_thres
+))) {
+                        /* address conflict detected */
+                        *conf_addr = e->orig_addr;
+                        return 1;
+                }
+        }
+
+        *alpha = 0;
+        return 0;
+  }
+
+e is the pointer to the generic packet, conf_addr returns the duplicate
+address, alpha tells the probability to which the decision may be wrong (is
+always 0 in case of non-probabilistic algorithms) and par is an arbitrary
+parameter.
+
+
+2.) Extend the value of pa[MAX_PDAD_ALGO] in main.c, which is of type
+
+  struct pdad_algo {
+        char *name;                     /* algorithm name */
+        pdad_func_t pdad_func;          /* pdad function ptr */
+        u_int8_t active;                /* active flag */
+        float par;                      /* algorithm parameter */
+        int stats;                      /* statistics counter */
+  };
+
+Don't forget to increment MAX_PDAD_ALGO in pacman.h and add a def_par-value
+in protocols[MAX_RT_PROTOCOLS] in main.c.
+
+The value for PDAD-SN looks as follows:
+
+  { "SN", pdad_sn, 0, 0, 0}
+
